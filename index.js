@@ -8,7 +8,7 @@ select l.id, l.content_id, r.passage
 from lessons l
 inner join readings r on r.id = l.reading_id
 where l.lesson_type in (1,2,4,7)
-and l.id = 17654
+and l.id = 16327
 order by l.id
 `
 
@@ -20,45 +20,66 @@ on sa.assignment_id = a.id
 inner join student_responses sr
 on sr.student_assignment_id = sa.id
 AND sr.answers_type = 'Reading'
-WHERE a.lesson_id = 17654
+WHERE a.lesson_id = 16327
 `
 
+const addPassage = highlights => {
+  const highlighter = rangy.createHighlighter()
+
+  highlights.forEach(
+    ({ serialized_selection, highlight_type, id, highlight_selection }) => {
+      highlighter.addClassApplier(
+        rangy.createClassApplier('highlighted', {
+          normalize: true,
+          elementTagName: 'mark',
+          elementProperties: {
+            className: `highlight-type-${highlight_type}`
+          },
+          elementAttributes: {
+            highlightId: id
+          }
+        })
+      )
+
+      const selection = rangy.deserializeSelection(
+        serialized_selection,
+        document.getElementById('highlight-area')
+      )
+
+      highlighter.highlightSelection('highlighted', {
+        selection
+      })
+    }
+  )
+
+  return highlighter.serialize()
+}
+
 async function run() {
-  client.connect().then(() => {
-    client.query(
-      'SELECT l.id, r.passage FROM lessons l inner join readings r on r.id = l.reading_id WHERE l.lesson_type = 1 LIMIT 10',
-      (err, res) => {
-        if (err) {
-          console.log(err.stack)
-        } else {
-          const { passage } = res.rows[0]
+  const chromeless = new Chromeless()
 
-          const chromeless = new Chromeless()
+  await client.connect()
 
-          chromeless
-            .evaluate(
-              passage => {
-                const doc = new DOMParser().parseFromString(
-                  passage,
-                  'text/html'
-                )
+  const lesson = await client.query(getlesson)
+  const highlights = await client.query(getHighlights)
+  const { passage } = lesson.rows[0]
+  const { json } = highlights.rows[0]
 
-                document.body.appendChild(doc.body)
-              },
-              [passage]
-            )
-            .then(() => {
-              chromeless.screenshot().then(screenshot => {
-                console.log(screenshot)
-                chromeless.end()
-              })
-            })
-
-          // prints local file path or S3 url
-        }
-      }
+  const serialized = await chromeless
+    .setHtml(
+      `<head><script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-core.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-classapplier.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-highlighter.min.js"></script>
+      <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/rangy/1.3.0/rangy-serializer.min.js"></script>
+      </head><body><div id="highlight-area">${passage}</div></body>`
     )
-  })
+    .wait('div#highlight-area')
+    .evaluate(addPassage, json)
+
+  console.log(serialized)
+
+  await chromeless.end()
+  await client.end()
 }
 
 run().catch(console.error.bind(console))
