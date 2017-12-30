@@ -17,14 +17,14 @@
         "env",
         {
           "targets": {
-            "node": "8.9.3"
+            "node": "6.12.2"
           }
         }
       ]
     ]
   },
   "scripts": {
-    "listen": "export PGDATABASE=thinkcerca_development && nodemon index.js --exec babel-node",
-    "start": "export PGDATABASE=thinkcerca_development && babel-node index.js"
+    "listen": "nodemon index.js --exec babel-node",
+    "start": "babel-node index.js"
   }
 }
